@@ -15,19 +15,24 @@ parse_git_branch() {
 	return ${pipestatus[0]}
 }
 
-time_color=$(tput setaf 220)
-cwd_color=$(tput setaf 40)
-git_color=$(tput setaf 161)
+time_color="\[$(tput setaf 220)\]"
+cwd_color="\[$(tput setaf 40)\]"
+git_color="\[$(tput setaf 161)\]"
 
-reset=$(tput sgr0)
-rev=$(tput rev)
-bold=$(tput bold)
+reset="\[$(tput sgr0)\]"
+rev="\[$(tput rev)\]"
+bold="\[$(tput bold)\]"
 
 # tput colors: setaf (foreground), setab (background)
 # black: 0, red: 1, green: 2, yellow: 3, blue: 4, magenta: 5, cyan: 6, white: 7
 
 # Using tput to change bash prompt color
-export PS1='${bold}${time_color}\@ ${cwd_color}\w${git_color}$(parse_git_branch)${reset}${bold} 󰄾 '
+PS1="${bold}${time_color}\@ "
+PS1+="${cwd_color}\w"
+PS1+="${git_color}$(parse_git_branch)"
+PS1+="${reset}${bold} 󰄾 "
+export PS1
+# export PS1='${bold}${time_color}\@ ${cwd_color}\w${git_color}$(parse_git_branch)${reset}${bold} 󰄾 '
 
 # Aliases
 # -------
