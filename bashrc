@@ -36,9 +36,14 @@ export PS1
 # Aliases
 # -------
 alias ls="ls --color=auto"
+alias la="ls --color=auto --almost-all"
+alias ll="ls --color=auto -l"
 alias grep="grep --color=auto"
 alias ipython="ipython --no-banner"
 alias tree="tree -C"
+alias ..="cd .."
+alias ...="cd ../.."
+alias ....="cd ../../.."
 
 # Custom shell functions
 # ----------------------
