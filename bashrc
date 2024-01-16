@@ -32,7 +32,6 @@ PS1+="${cwd_color}\w"
 PS1+="${git_color}$(parse_git_branch)"
 PS1+="${reset}${bold} 󰄾 "
 export PS1
-# export PS1='${bold}${time_color}\@ ${cwd_color}\w${git_color}$(parse_git_branch)${reset}${bold} 󰄾 '
 
 # Aliases
 # -------
@@ -40,7 +39,6 @@ alias ls="ls --color=auto"
 alias grep="grep --color=auto"
 alias ipython="ipython --no-banner"
 alias tree="tree -C"
-# alias theme="alacritty-themes"
 
 # Custom shell functions
 # ----------------------
