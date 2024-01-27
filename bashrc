@@ -150,6 +150,7 @@ activate() {
 
 # Launch alacritty with dark/light background depending on time of the day
 if [[ "$TERM" == "alacritty" ]]; then
+    theme --clean
     hour_of_day=$(date +%_H)
     if (( "$hour_of_day" < 6 || "$hour_of_day" > 19 )); then
         alacritty-themes Terminal-app 
