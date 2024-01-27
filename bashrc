@@ -38,6 +38,7 @@ export PS1
 alias ls="ls --color=auto"
 alias la="ls --color=auto --almost-all"
 alias ll="ls --color=auto -l"
+alias lt="ls --color=auto -t"
 alias grep="grep --color=auto"
 alias ipython="ipython --no-banner"
 alias tree="tree -C"
