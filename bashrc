@@ -10,9 +10,9 @@
 [[ -f $HOME/.profile ]] && . $HOME/.profile
 
 # get name of current git branch
+# list branches and select branch with "*" infront
 parse_git_branch() {
 	git branch 2>/dev/null | sed -e "/^[^*]/d; s/* \(.*\)/ (\1)/"
-	return ${pipestatus[0]}
 }
 
 time_color="\[$(tput setaf 220)\]"
@@ -29,7 +29,7 @@ bold="\[$(tput bold)\]"
 # Using tput to change bash prompt color
 PS1="${bold}${time_color}\@ "
 PS1+="${cwd_color}\w"
-PS1+="${git_color}$(parse_git_branch)"
+PS1+="${git_color}\$(parse_git_branch)"
 PS1+="${reset}${bold} 󰄾 "
 export PS1
 
