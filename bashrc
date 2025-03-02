@@ -1,32 +1,64 @@
 #!/bin/bash
-# shellcheck disable=2068
-# file: ~/.bashrc
+# ~/.bashrc
 # Read by BASH when run as an interactive NON-LOGIN shell
 
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
-# Source ~/.profile
-[[ -f $HOME/.profile ]] && . $HOME/.profile
+# ZSH-like autocompletion
+# NB: Does not behave exactly like zsh.  Zsh autocompletes the string up until
+# next ambiguous match, but bash prints the matches and cycles through all
+# matches.
+bind -s 'set completion-ignore-case on' # Ignore case on tab completion
+bind -s 'set show-all-if-ambiguous on'
+bind -s 'TAB:menu-complete'
 
-# get name of current git branch
-# list branches and select branch with "*" infront
-parse_git_branch() {
-	git branch 2>/dev/null | sed -e "/^[^*]/d; s/* \(.*\)/ (\1)/"
+# Unless given path ($1) is already in PATH add it to PATH
+function append_path(){
+    [ ! -d "$1" ] && return
+    case ":${PATH}:" in
+        (*":$1:"*)
+                ;; # do nothing
+            (*)
+                PATH="${PATH:+$PATH:}$1" # if set and not NIL expand PATH
+    esac
 }
 
-time_color="\[$(tput setaf 220)\]"
-cwd_color="\[$(tput setaf 40)\]"
-git_color="\[$(tput setaf 161)\]"
+# Add following dirs to path
+append_path "$HOME/.local/bin"
 
-reset="\[$(tput sgr0)\]"
-rev="\[$(tput rev)\]"
-bold="\[$(tput bold)\]"
+# Make `cd` look inside directories in addition to $PWD
+export CDPATH=".:$HOME:$HOME/.config:$HOME/code"
 
-# tput colors: setaf (foreground), setab (background)
-# black: 0, red: 1, green: 2, yellow: 3, blue: 4, magenta: 5, cyan: 6, white: 7
+# If found source ~/.bash_aliases
+[ -f "$HOME/.bash_aliases" ] && source "$HOME/.bash_aliases"
+
+# -----------------------------------------------------------------------------
+#                       Custom shell functions
+# -----------------------------------------------------------------------------
+# pacman -Ql --quiet <package> command gives a list of files and directories. 
+# I want to examine ONLY the files of the given package.
+package_files() {
+	pkg_name="$1"
+	if [[ "$1" == "-x" ]]; then
+		pkg_name="$2"
+		pacman -Ql --quiet "${pkg_name}" | xargs -I{} sh -c "test -f {} && test -x {} && echo {}" || true
+	else
+		pacman -Ql --quiet "${pkg_name}"
+	fi
+}
 
 # Using tput to change bash prompt color
+# tput colors: setaf (foreground), setab (background)
+declare -r time_color="\[$(tput setaf 220)\]"
+declare -r cwd_color="\[$(tput setaf 40)\]"
+declare -r git_color="\[$(tput setaf 161)\]"
+declare -r err_bg_color="\[$(tput setab 240)\]"
+
+declare -r reset="\[$(tput sgr0)\]"
+declare -r rev="\[$(tput rev)\]"
+declare -r bold="\[$(tput bold)\]"
+
 PS1="${bold}${time_color}\@ "
 PS1+="${cwd_color}\w"
 PS1+="${git_color}\$(parse_git_branch)"
@@ -62,7 +94,88 @@ package_files() {
 # Disable beeper in X for all apps.
 xset b off
 
-# Setting up python development environment
+# NOTE: Because of how variable expansion differs between double and single 
+# quotes, assigning `_err_bg_color` and `reset` to `_bg_color` does not work.
+# This function does not directly modify `PS1`, therefore bin/activate
+# script in python virtual envs can still update the prompt `PS1`
+function update_bg(){
+    if [ "$?" != 0 ]; then
+        _bg_color="$(tput setab 240)"
+    else
+        _bg_color="$(tput sgr0)"
+    fi
+}
+
+# Get name of current git branch
+# list branches and select branch with "*" infront
+function parse_git_branch() {
+    _git_branch=$(git branch 2>/dev/null | sed -e "/^[^*]/d; s/* \(.*\)/(\1)/")
+}
+
+function update_prompt(){
+    update_bg
+    parse_git_branch
+}
+
+# Using tput to change bash prompt color (need ligaturized font for the prompt)
+# PROMPT_COMMAND is evaluated each time before `PS1` is printed
+export PROMPT_COMMAND=update_prompt
+
+# Needs dynamic expansion at each time PS1 is evaluated. Thus SINGLE quotes.
+PS1='${_bg_color}'
+PS1+="${bold}${time_color}\@ ${cwd_color}\w${git_color} "
+PS1+='${_git_branch}'
+PS1+="${reset}$ 󰄾 "
+export PS1
+
+
+# -----------------------------------------------------------------------------
+#                               Python
+# -----------------------------------------------------------------------------
+#
+# Virtual Environments
+
+# Look for given path in current directory and all directories above (i.e.
+# parent directories). Utility function to search for some indicator (e.g. .git)
+# that shows what is the root directory of a software project.
+# "$1" = path to search for (i.e. bin/activate)
+# Accepts absolute or relative path as target, if no argument given implies
+# current working directory is the target
+function get_parent_dirs(){
+    if [ -n "$1" ]
+    then
+        path=$(realpath "$1")
+    else
+        path=$(pwd)
+    fi
+    # If not a valid path stop and return to caller
+    [[ -e "${path}" ]] || return
+
+    while [[ "${path}" != "/" ]]
+    do
+        [[ -d "${path}" ]] && printf "%s\n" "${path}"
+        path=$(dirname "${path}")
+    done
+}
+
+# Activate the python virtual environment directly without having to source
+# relavent bin/activate script.
+# NOTE: Assume above script is found locally in the virtual env directory or any
+# of the parent directories above.
+activate() {
+    parent_dirs="$(get_parent_dirs)"
+    for dir in ${parent_dirs[@]}; do
+        script="${dir}/bin/activate"
+        if [[ -f ${script} ]]; then
+            source ${script}
+            echo "Python virtual environment activated"
+            return
+        fi
+    done
+    echo "No python virtual environment activate script was found" >&2
+}
+
+# Setup python development environment
 # -----------------------------------------
 # Python interpreter writes *.pyc files to a __pycache__ directory
 # on module import, for better performance. But I don't want my
@@ -71,90 +184,26 @@ export PYTHONDONTWRITEBYTECODE=x
 
 # If I have a "lib" directory in my home, add it to python
 # module import path, so that I can import custom modules.
-if [ -n "$PYTHONPATH" ] && [ -d "${HOME}/lib" ]; then
+if [[ -n ${PYTHONPATH}  &&  -d "${HOME}/lib" ]]; then
 	export PYTHONPATH="${PYTHONPATH}:${HOME}/lib"
 fi
-
-# Project Gutenberg ftp archive
-export GUTENBERG_FTP="sailor.gutenberg.lib.md.us"
-
-# Expose WLAN router and Google DNS server IP address as variables
-# for convenient pinging.
-export ROUTER=192.168.1.1
-export GOOGLE_DNS=8.8.8.8
-
-# export workon_home=~/.virtualenvs
-# source /usr/bin/virtualenvwrapper.sh
-
-export CDPATH=".:$HOME:$HOME/.config:$HOME/code"
-
-# export PROMPT_COMMAND='echo ""'
-
-# ZSH-like autocompletion
-# NB: Does not behave exactly like zsh.  Zsh autocompletes the string up until
-# next ambiguous match, but bash prints the matches and cycles through all
-# matches.
-bind 'set show-all-if-ambiguous on'
-bind 'TAB:menu-complete'
-
-#ignore upper and lowercase when TAB completion
-bind "set completion-ignore-case on"
-
-# Neovim config switcher
-alias astronvim="NVIM_APPNAME=AstroNvim nvim"
-alias lazyvim="NVIM_APPNAME=LazyVim nvim"
-alias kickstart="NVIM_APPNAME=kickstart.nvim nvim"
-alias n="NVIM_APPNAME=nvim-test nvim"
 
 # Augmented nvim to pick any of given configs
 # Defaults to regular nvim
 function v() {
-	items=("default" "nvim-test" "LazyVim" "AstroNvim" "kickstart.nvim")
-	config=$(printf "%s\n" "${items[@]}" | fzf --prompt=" Neovim Config 󰶻 " --height=~50% --layout=reverse --border --exit-0)
-	if [[ -z "$config" ]]; then
-		echo "Nothing selected"
-		return 0
-	elif [[ "$config" == "default" ]]; then
-		config=""
-	fi
-	NVIM_APPNAME="$config" nvim "$@"
-}
-
-# Augmented alacritty-themes command
-# If --clean option is given, delete all backup files in alacritty config dir
-function theme() {
-	if [[ "$1" == "--clean" ]]; then
-		~/pkg/bin/alacritty-themes-backup-cleanup.sh
-	else
-		alacritty-themes "$@"
-	fi
-}
-export theme
-
-# Python Virtual Environments
-# Trick to activate python virtual environments with venv without explicitly
-# look for venv/bin/activate or .venv/bin/activate in that order, and source
-# the first of them found
-activate() {
-	activate_scripts=({,.}venv/bin/activate)
-	for script in ${activate_scripts[@]}; do
-		if [[ -f $script ]]; then
-			. "$script"
-			echo "Python virtual environment activated"
-			return 0
-		fi
-	done
-	echo "Neither of ${activate_scripts[*]} found" >&2
-	return 1
-}
-
-# Launch alacritty with dark/light background depending on time of the day
-if [[ "$TERM" == "alacritty" ]]; then
-    theme --clean
-    hour_of_day=$(date +%_H)
-    if (( "$hour_of_day" < 6 || "$hour_of_day" > 19 )); then
-        alacritty-themes Terminal-app 
-    else
-        alacritty-themes Terminal-app-Basic
+    items=("default" "nvim-test" "LazyVim" "AstroNvim" "kickstart.nvim")
+    config=$(printf "%s\n" "${items[@]}" | fzf --prompt=" Neovim Config 󰶻 " --height=~50% --layout=reverse --border --exit-0)
+    if [[ -z "$config" ]]; then
+            echo "Nothing selected"
+            return 0
+    elif [[ "$config" == "default" ]]; then
+            config=""
     fi
-fi
+    NVIM_APPNAME="$config" nvim "$@"
+}
+
+
+# For neovim
+export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+export XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+export MYVIMRC="${XDG_CONFIG_HOME}/nvim/init.lua"

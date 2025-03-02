@@ -1,0 +1,7 @@
+[font]
+normal.family = "Comic Code Ligatures"
+normal.style = "Medium"
+size = 13
+
+[window]
+startup_mode = "Fullscreen"
